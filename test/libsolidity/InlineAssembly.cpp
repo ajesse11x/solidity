@@ -246,7 +246,7 @@ BOOST_AUTO_TEST_CASE(functional)
 
 BOOST_AUTO_TEST_CASE(functional_partial)
 {
-	CHECK_PARSE_ERROR("{ let x := byte }", ParserError, "Expected token \"(\"");
+	CHECK_PARSE_ERROR("{ let x := byte }", ParserError, "Expected '(' (\"byte\" expects 2 arguments)");
 }
 
 BOOST_AUTO_TEST_CASE(functional_partial_success)
@@ -290,7 +290,7 @@ BOOST_AUTO_TEST_CASE(if_statement_scope)
 
 BOOST_AUTO_TEST_CASE(if_statement_invalid)
 {
-	CHECK_PARSE_ERROR("{ if mload {} }", ParserError, "Expected token \"(\"");
+	CHECK_PARSE_ERROR("{ if mload {} }", ParserError, "Expected '(' (\"mload\" expects 1 arguments)");
 	BOOST_CHECK("{ if calldatasize() {}");
 	CHECK_PARSE_ERROR("{ if mstore(1, 1) {} }", ParserError, "Instruction \"mstore\" not allowed in this context");
 	CHECK_PARSE_ERROR("{ if 32 let x := 3 }", ParserError, "Expected '{' but got reserved keyword 'let'");
@@ -320,7 +320,7 @@ BOOST_AUTO_TEST_CASE(switch_duplicate_case)
 BOOST_AUTO_TEST_CASE(switch_invalid_expression)
 {
 	CHECK_PARSE_ERROR("{ switch {} default {} }", ParserError, "Literal, identifier or instruction expected.");
-	CHECK_PARSE_ERROR("{ switch mload default {} }", ParserError, "Expected token \"(\"");
+	CHECK_PARSE_ERROR("{ switch mload default {} }", ParserError, "Expected '(' (\"mload\" expects 1 arguments)");
 	CHECK_PARSE_ERROR("{ switch mstore(1, 1) default {} }", ParserError, "Instruction \"mstore\" not allowed in this context");
 }
 
@@ -356,7 +356,7 @@ BOOST_AUTO_TEST_CASE(for_invalid_expression)
 	CHECK_PARSE_ERROR("{ for 1 1 {} {} }", ParserError, "Expected '{' but got 'Number'");
 	CHECK_PARSE_ERROR("{ for {} 1 1 {} }", ParserError, "Expected '{' but got 'Number'");
 	CHECK_PARSE_ERROR("{ for {} 1 {} 1 }", ParserError, "Expected '{' but got 'Number'");
-	CHECK_PARSE_ERROR("{ for {} mload {} {} }", ParserError, "Expected token \"(\"");
+	CHECK_PARSE_ERROR("{ for {} mload {} {} }", ParserError, "Expected '(' (\"mload\" expects 1 arguments)");
 	CHECK_PARSE_ERROR("{ for {} mstore(1, 1) {} {} }", ParserError, "Instruction \"mstore\" not allowed in this context");
 }
 
@@ -438,7 +438,7 @@ BOOST_AUTO_TEST_CASE(invalid_tuple_assignment)
 BOOST_AUTO_TEST_CASE(instruction_too_few_arguments)
 {
 	CHECK_PARSE_ERROR("{ mul() }", ParserError, "Expected expression (\"mul\" expects 2 arguments)");
-	CHECK_PARSE_ERROR("{ mul(1) }", ParserError, "Expected comma (\"mul\" expects 2 arguments)");
+	CHECK_PARSE_ERROR("{ mul(1) }", ParserError, "Expected ',' (\"mul\" expects 2 arguments)");
 }
 
 BOOST_AUTO_TEST_CASE(instruction_too_many_arguments)

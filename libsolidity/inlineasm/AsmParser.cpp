@@ -276,7 +276,7 @@ assembly::Expression Parser::parseExpression()
 		int args = instructionInfo(instr.instruction).args;
 		if (args > 0 && currentToken() != Token::LParen)
 			fatalParserError(string(
-				"Expected token \"(\" (\"" +
+				"Expected '(' (\"" +
 				instructionNames().at(instr.instruction) +
 				"\" expects " +
 				boost::lexical_cast<string>(args) +
@@ -516,7 +516,7 @@ assembly::Expression Parser::parseCall(Parser::ElementaryOperation&& _initialOp)
 			{
 				if (currentToken() != Token::Comma)
 					fatalParserError(string(
-						"Expected comma (\"" +
+						"Expected ',' (\"" +
 						instructionNames().at(instr) +
 						"\" expects " +
 						boost::lexical_cast<string>(args) +
