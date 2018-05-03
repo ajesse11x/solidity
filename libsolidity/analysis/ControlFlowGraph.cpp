@@ -68,13 +68,15 @@ bool CFG::visit(FunctionDefinition const& _function)
 	return true;
 }
 
-void CFG::endVisit(FunctionDefinition const&)
+void CFG::endVisit(FunctionDefinition const& _function)
 {
 	solAssert(!!m_currentNode, "");
 	solAssert(!!m_currentFunctionFlow, "");
 	solAssert(m_currentFunctionFlow->entry, "");
 	solAssert(m_currentFunctionFlow->exit, "");
 	addEdge(m_currentNode, m_currentFunctionFlow->exit);
+
+	checkUnassignedStorageReturnValues(_function, m_currentFunctionFlow->entry, m_currentFunctionFlow->exit);
 
 	m_currentNode = nullptr;
 	m_returnJump = nullptr;
@@ -292,4 +294,90 @@ void CFG::addEdge(CFGNode* _from, CFGNode* _to)
 	solAssert(_to, "");
 	_from->exits.push_back(_to);
 	_to->entries.push_back(_from);
+}
+
+void CFG::checkUnassignedStorageReturnValues(
+	FunctionDefinition const& _function,
+	CFGNode const* _functionEntry,
+	CFGNode const* _functionExit
+) const
+{
+	map<CFGNode const*, set<VariableDeclaration const*>> unassigned;
+
+	{
+		auto& unassignedAtFunctionEntry = unassigned[_functionEntry];
+		for (auto const& returnParameter: _function.returnParameterList()->parameters())
+			if (returnParameter->type()->dataStoredIn(DataLocation::Storage))
+				unassignedAtFunctionEntry.insert(returnParameter.get());
+	}
+
+	stack<CFGNode const*> nodesToTraverse;
+	nodesToTraverse.push(_functionEntry);
+
+	while (!nodesToTraverse.empty())
+	{
+		auto node = nodesToTraverse.top();
+		nodesToTraverse.pop();
+
+		auto& unassignedAtNode = unassigned[node];
+
+		for (auto astNode: node->astNodes)
+		{
+			if (dynamic_cast<Return const*>(astNode))
+			{
+				unassignedAtNode.clear();
+				break;
+			}
+			else if (auto const* assignment = dynamic_cast<Assignment const*>(astNode))
+			{
+				stack<Expression const*> expressions;
+				expressions.push(&assignment->leftHandSide());
+				while (!expressions.empty())
+				{
+					Expression const* expression = expressions.top();
+					expressions.pop();
+
+					if (auto const *tuple = dynamic_cast<TupleExpression const*>(expression))
+						for (auto const& component: tuple->components())
+							expressions.push(component.get());
+					else if (auto const* identifier = dynamic_cast<Identifier const*>(expression))
+						if (auto const* variableDeclaration = dynamic_cast<VariableDeclaration const*>(
+							identifier->annotation().referencedDeclaration
+						))
+						{
+							unassignedAtNode.erase(variableDeclaration);
+							if (unassignedAtNode.empty())
+								break;
+						}
+				}
+			}
+		}
+
+		for (auto const& exit: node->exits)
+		{
+			auto& unassignedAtExit = unassigned[exit];
+			if (unassignedAtNode.size() > unassignedAtExit.size())
+			{
+				unassignedAtExit.insert(unassignedAtNode.begin(), unassignedAtNode.end());
+				nodesToTraverse.push(exit);
+			}
+		}
+	}
+
+	if (unassigned[_functionExit].size() > 0)
+	{
+		vector<VariableDeclaration const*> unassignedOrdered(
+			unassigned[_functionExit].begin(),
+			unassigned[_functionExit].end()
+		);
+		sort(
+			unassignedOrdered.begin(),
+			unassignedOrdered.end(),
+			[](VariableDeclaration const* lhs, VariableDeclaration const* rhs) -> bool {
+				return lhs->id() < rhs->id();
+			}
+		);
+		for (auto returnVal: unassignedOrdered)
+			m_errorReporter.warning(returnVal->location(), "uninitialized storage pointer may be returned");
+	}
 }

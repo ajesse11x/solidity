@@ -82,6 +82,11 @@ protected:
 private:
 	CFGNode* newNode();
 	static void addEdge(CFGNode* _from, CFGNode* _to);
+	void checkUnassignedStorageReturnValues(
+		FunctionDefinition const& _function,
+		CFGNode const* _functionEntry,
+		CFGNode const* _functionExit
+	) const;
 
 	ErrorReporter& m_errorReporter;
 
