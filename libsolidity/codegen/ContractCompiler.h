@@ -95,6 +95,8 @@ private:
 	void registerStateVariables(ContractDefinition const& _contract);
 	void initializeStateVariables(ContractDefinition const& _contract);
 
+	virtual bool visit(Block const& _block) override;
+	virtual void endVisit(Block const& _block) override;
 	virtual bool visit(VariableDeclaration const& _variableDeclaration) override;
 	virtual bool visit(FunctionDefinition const& _function) override;
 	virtual bool visit(InlineAssembly const& _inlineAssembly) override;
@@ -136,6 +138,9 @@ private:
 	unsigned m_stackCleanupForReturn = 0; ///< this number of stack elements need to be removed before jump to m_returnTag
 	// arguments for base constructors, filled in derived-to-base order
 	std::map<FunctionDefinition const*, ASTNode const*> const* m_baseArguments;
+
+	std::stack<Block const*> m_blockStack;
+	std::map<Block const*, std::vector<VariableDeclaration const*>> m_blockVariables;
 };
 
 }

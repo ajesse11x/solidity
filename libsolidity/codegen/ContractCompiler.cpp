@@ -441,8 +441,8 @@ bool ContractCompiler::visit(FunctionDefinition const& _function)
 
 	for (ASTPointer<VariableDeclaration const> const& variable: _function.returnParameters())
 		appendStackVariableInitialisation(*variable);
-	for (VariableDeclaration const* localVariable: _function.localVariables())
-		appendStackVariableInitialisation(*localVariable);
+	//for (VariableDeclaration const* localVariable: _function.localVariables())
+	//	appendStackVariableInitialisation(*localVariable);
 
 	if (_function.isConstructor())
 		if (auto c = m_context.nextConstructor(dynamic_cast<ContractDefinition const&>(*_function.scope())))
@@ -467,14 +467,14 @@ bool ContractCompiler::visit(FunctionDefinition const& _function)
 
 	unsigned const c_argumentsSize = CompilerUtils::sizeOnStack(_function.parameters());
 	unsigned const c_returnValuesSize = CompilerUtils::sizeOnStack(_function.returnParameters());
-	unsigned const c_localVariablesSize = CompilerUtils::sizeOnStack(_function.localVariables());
+	//unsigned const c_localVariablesSize = CompilerUtils::sizeOnStack(_function.localVariables());
 
 	vector<int> stackLayout;
 	stackLayout.push_back(c_returnValuesSize); // target of return address
 	stackLayout += vector<int>(c_argumentsSize, -1); // discard all arguments
 	for (unsigned i = 0; i < c_returnValuesSize; ++i)
 		stackLayout.push_back(i);
-	stackLayout += vector<int>(c_localVariablesSize, -1);
+	//stackLayout += vector<int>(c_localVariablesSize, -1);
 
 	if (stackLayout.size() > 17)
 		BOOST_THROW_EXCEPTION(
@@ -497,8 +497,8 @@ bool ContractCompiler::visit(FunctionDefinition const& _function)
 
 	for (ASTPointer<VariableDeclaration const> const& variable: _function.parameters() + _function.returnParameters())
 		m_context.removeVariable(*variable);
-	for (VariableDeclaration const* localVariable: _function.localVariables())
-		m_context.removeVariable(*localVariable);
+	//for (VariableDeclaration const* localVariable: _function.localVariables())
+	//	m_context.removeVariable(*localVariable);
 
 	m_context.adjustStackOffset(-(int)c_returnValuesSize);
 
@@ -804,10 +804,32 @@ bool ContractCompiler::visit(EmitStatement const& _emit)
 	return false;
 }
 
+bool ContractCompiler::visit(Block const& _block)
+{
+	m_blockStack.push(&_block);
+	return true;
+}
+
+void ContractCompiler::endVisit(Block const& _block)
+{
+	solAssert(&_block == m_blockStack.top(), "");
+	for (auto _decl : m_blockVariables[m_blockStack.top()])
+	{
+		m_context << Instruction::POP;
+		m_context.removeVariable(*_decl);
+	}
+	m_blockStack.pop();
+}
+
 bool ContractCompiler::visit(VariableDeclarationStatement const& _variableDeclarationStatement)
 {
-	StackHeightChecker checker(m_context);
 	CompilerContext::LocationSetter locationSetter(m_context, _variableDeclarationStatement);
+	for (auto _decl : _variableDeclarationStatement.declarations())
+	{
+		m_blockVariables[m_blockStack.top()].emplace_back(&*_decl);
+		appendStackVariableInitialisation(*_decl);
+	}
+	StackHeightChecker checker(m_context);
 	if (Expression const* expression = _variableDeclarationStatement.initialValue())
 	{
 		CompilerUtils utils(m_context);
