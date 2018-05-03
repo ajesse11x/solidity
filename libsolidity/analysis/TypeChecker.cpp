@@ -1075,6 +1075,7 @@ void TypeChecker::endVisit(EmitStatement const& _emit)
 
 bool TypeChecker::visit(VariableDeclarationStatement const& _statement)
 {
+	bool const v050 = m_scope->sourceUnit().annotation().experimentalFeatures.count(ExperimentalFeature::V050);
 	if (!_statement.initialValue())
 	{
 		// No initial value is only permitted for single variables with specified type.
@@ -1091,7 +1092,7 @@ bool TypeChecker::visit(VariableDeclarationStatement const& _statement)
 				if (varDecl.referenceLocation() == VariableDeclaration::Location::Default)
 					errorText += " Did you mean '<type> memory " + varDecl.name() + "'?";
 				solAssert(m_scope, "");
-				if (m_scope->sourceUnit().annotation().experimentalFeatures.count(ExperimentalFeature::V050))
+				if (v050)
 					m_errorReporter.declarationError(varDecl.location(), errorText);
 				else
 					m_errorReporter.warning(varDecl.location(), errorText);
@@ -1131,12 +1132,33 @@ bool TypeChecker::visit(VariableDeclarationStatement const& _statement)
 				") in value for variable assignment (0) needed"
 			);
 	}
-	else if (valueTypes.size() != variables.size() && !variables.front() && !variables.back())
-		m_errorReporter.fatalTypeError(
-			_statement.location(),
-			"Wildcard both at beginning and end of variable declaration list is only allowed "
-			"if the number of components is equal."
-		);
+	else if (valueTypes.size() != variables.size())
+	{
+		if (v050)
+			m_errorReporter.fatalTypeError(
+				_statement.location(),
+				"Different number of components on the left hand side (" +
+				toString(variables.size()) +
+				") than on the right hand side (" +
+				toString(valueTypes.size()) +
+				")."
+			);
+		else if (!variables.front() && !variables.back())
+			m_errorReporter.fatalTypeError(
+				_statement.location(),
+				"Wildcard both at beginning and end of variable declaration list is only allowed "
+				"if the number of components is equal."
+			);
+		else
+			m_errorReporter.warning(
+				_statement.location(),
+				"Different number of components on the left hand side (" +
+				toString(variables.size()) +
+				") than on the right hand side (" +
+				toString(valueTypes.size()) +
+				")."
+			);
+	}
 	size_t minNumValues = variables.size();
 	if (!variables.empty() && (!variables.back() || !variables.front()))
 		--minNumValues;
@@ -1333,6 +1355,7 @@ bool TypeChecker::visit(Conditional const& _conditional)
 
 bool TypeChecker::visit(Assignment const& _assignment)
 {
+	bool const v050 = m_scope->sourceUnit().annotation().experimentalFeatures.count(ExperimentalFeature::V050);
 	requireLValue(_assignment.leftHandSide());
 	TypePointer t = type(_assignment.leftHandSide());
 	_assignment.annotation().type = t;
@@ -1345,11 +1368,30 @@ bool TypeChecker::visit(Assignment const& _assignment)
 			);
 		// Sequenced assignments of tuples is not valid, make the result a "void" type.
 		_assignment.annotation().type = make_shared<TupleType>();
+
 		expectType(_assignment.rightHandSide(), *tupleType);
 
 		// expectType does not cause fatal errors, so we have to check again here.
-		if (dynamic_cast<TupleType const*>(type(_assignment.rightHandSide()).get()))
+		if (TupleType const* rhsType = dynamic_cast<TupleType const*>(type(_assignment.rightHandSide()).get()))
+		{
 			checkDoubleStorageAssignment(_assignment);
+			// TODO For 0.5.0, this code shoud move to TupleType::isImplicitlyConvertibleTo,
+			// but we cannot do it right now.
+			if (rhsType->components().size() != tupleType->components().size())
+			{
+				// TODO special case `(x) = (1,)`
+				string message =
+					"Different number of components on the left hand side (" +
+					toString(tupleType->components().size()) +
+					") than on the right hand side (" +
+					toString(rhsType->components().size()) +
+					").";
+				if (v050)
+					m_errorReporter.typeError(_assignment.location(), message);
+				else
+					m_errorReporter.warning(_assignment.location(), message);
+			}
+		}
 	}
 	else if (t->category() == Type::Category::Mapping)
 	{
